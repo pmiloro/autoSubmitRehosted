@@ -17,6 +17,10 @@ echo $SETTINGS_DIR
 echo $SIM_OUTPUT_DIR
 
 previousSims=($(ls $SIM_OUTPUT_DIR))
+for i in "${previousSims[@]}"; do
+	echo "${previousSims[$i]}"
+done
+
 numPreviousSims=${#previousSims[@]}
 
 parfileNames=()
@@ -31,6 +35,7 @@ previousMaxMs=()
 for i in "${previousSims[@]}"
 do
 	tokenlessPar=$(ls "$SIM_OUTPUT_DIR/$i/" | grep ".par")
+	echo $tokenlessPar
 	parfileNames+=("PFN:$tokenlessPar")
 
 	parSources+=("PSL:Local")
