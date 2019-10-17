@@ -6,12 +6,14 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 
 CACTUS_DIR="$HOME/data/Cactus"
+SETTINGS_DIR="$CACTUS_DIR/simfactory/etc/"
 SIM_OUTPUT_DIR=$(grep -o "\w*$HOME/\w*/\w*" "${SETTINGS_DIR}defs.local.ini")
 STATUS_FILE="status.txt"
 
 
 echo $DIR
 echo $CACTUS_DIR
+echo $SETTINGS_DIR
 echo $SIM_OUTPUT_DIR
 
 previousSims=($(ls $SIM_OUTPUT_DIR))
