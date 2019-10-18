@@ -18,7 +18,7 @@ STATUS_FILE="status.txt"
 USERNAME="pmiloro3"
 
 #Get all simulations listed in queue
-sims=($(showq | grep $USERNAME))
+sims=("$(showq | grep $USERNAME)")
 queueSizeCurrent=${#sims[@]}
 
 
@@ -47,15 +47,19 @@ function writeToExternalFile () {
 	newData=$3
 	destFile=$4
 
-	#Get line text and number of the search parameter in the status file
-	statusLine=$(grep $searchParam $STATUS_FILE)
-	statusLineNum=$(grep -n $searchParam $STATUS_FILE | cut -f1 -d:)
-	#Grab the text we're going to replace
-	dataToReplace=$(echo $statusLine | grep -o "\w*$fieldToken\:\w*")
+	if grep $searchParam $STATUS_FILE; then
+		#Get line text and number of the search parameter in the status file
+		statusLine=$(grep $searchParam $STATUS_FILE)
+#		echo "Status line is $statusLine"
+		statusLineNum=$(grep -n $searchParam $STATUS_FILE | cut -f1 -d:)
+#		echo "Status line number is: $statusLineNum"
+		#Grab the text we're going to replace
+		dataToReplace=$(echo $statusLine | grep -o "\w*$fieldToken\:\w*")
 
-	#Replace the original data with the new data in-place
-	sed -i "${statusLineNum}s/${dataToReplace}/${newData}/" $destFile
-
+		#Replace the original data with the new data in-place
+#		echo "sed -i "${statusLineNum}s/${dataToReplace}/${newData}/" $destFile"
+		sed -i "${statusLineNum}s/${dataToReplace}/${newData}/" $destFile
+	fi 
 }
 
 function updateStatuses () {
@@ -74,7 +78,8 @@ function updateStatuses () {
 			if [${#sims[@]} > queueSizeCurrent]; then
 				queueSizeCurrent=${#sims[@]}
 				#Update simulation data with the new run profiles
-				IFS="\s\s\s\s\s\s\s\s";  read -ra line <<< ${sims[$queueSizeCurrent-1]}
+				#IFS="\s\s\s\s\s\s\s\s";  read -ra line <<< ${sims[$queueSizeCurrent-1]}
+				line=(${sims[$queueSizeCurrent-1]})
 				#Update Job ID
 				writeToExternalFile $thisID "JI" "JID:${line[0]}" $STATUS_FILE
 				#Update queue status
@@ -109,7 +114,7 @@ function updateStatuses () {
 				writeToExternalFile $thisID "LRD" "LRD:${line[4]}" $STATUS_FILE
 			else
 				writeToExternalFile $thisID "JID" "JID:ERROR" $STATUS_FILE
-				writeToExternalFile $thisID "QUS" "QUSs:ERROR" $STATUS_FILE
+				writeToExternalFile $thisID "QUS" "QUS:ERROR" $STATUS_FILE
 
 			fi
 		fi
@@ -117,19 +122,33 @@ function updateStatuses () {
 
 }
 
+#for i in "${sims[@]}"; do
+#	echo "$i"
+#done
+
 for i in "${sims[@]}"
 do
 	#Split showq output by the delimiter they use (eight spaces)
 	#IFS="\s\s\s\s\s\s\s\s";  read -ra line <<< $i
 	line=($i)
 	#Grab the jobID and status from this line
-	jobId=${line[0]}
+	jobID=${line[0]}
+#	echo "$jobID"
 	queueStatus=${line[2]}
+#	echo "$queueStatus"
+#	echo "JID:$jobID"
 	writeToExternalFile "JID:$jobID" "QUS" "QUS:$queueStatus" $STATUS_FILE
+#	echo "Queue status written"
 done
 
 #Get all simulations in the status file by their parfile name
-trackedSims=($(grep -o "\w*PFN\:w*" $STATUS_FILE))
+trackedSims=("$(grep -o "\w*PFN\:w*" $STATUS_FILE)")
+echo "trackedSims are:"
+for i in "${trackedSims[@]}"; do
+	echo "$i"
+done
+
+
 
 #Separate the new parfiles from ones that have already been run or are running
 newPFNs=()
@@ -137,12 +156,12 @@ runningOrCompletedJIDs=()
 for i in "${trackedSims[@]}"
 do
 	#If that parfile has a job ID
-	if [grep $i $STATUS_FILE | grep -o "\w*JID\:\w*"]; then
+	if grep $i $STATUS_FILE | grep -o "\w*JID\:\w*"; then
 		#then it's already been submitted at least once
-		runningOrCompletedJIDs+=(grep $i $STATUS_FILE | grep -o "\w*JID\:\w*")
+		runningOrCompletedJIDs+=("$(grep $i $STATUS_FILE | grep -o "\w*JID\:\w*")")
 	else
 		#if it doesn't it's a new parfile to be dealt with
-		newPFNs+=($i)
+		newPFNs+=("$i")
 	fi
 done
 
@@ -155,7 +174,7 @@ do
 	do
 		#If we find the tracked sim in the sims array, it's still in queue, so 
 		#remove it from the array of sims we need to take action on
-		if [echo $j | grep $i]; then
+		if echo $j | grep $i; then
 			completedJIDs=${newOrCompletedJIDs[@]/$i}
 		fi
 	done
@@ -168,7 +187,7 @@ do
 	simName=$(grep $i $STATUS_FILE | grep -o "\w*SMN\:\w*")
 	parName="$CACTUS_PAR_DIRECTORY$i"
 	#Try submitting it to the queue with the configured settings, update either with error message or with successful result
-	submitStatus=$($CACTUS_DIR/simfactory/bin/sim create-submit $simName --configuration=$DEF_CONFIG --parfile=par/$parName --walltime=$DEF_WALLTIME --procs=$DEF_PROCS)
+#	#submitStatus=$($CACTUS_DIR/simfactory/bin/sim create-submit $simName --configuration=$DEF_CONFIG --parfile=par/$parName --walltime=$DEF_WALLTIME --procs=$DEF_PROCS)
 	updateStatuses $i $submitStatus
 	writeToExternalFile $i $DS "$DSD:$SIM_OUTPUT_DIR$simName" $STATUS_FILE
 done
@@ -188,14 +207,15 @@ do
 
 	#Get the last line of the shift tracker data so we can determine how far the simulation has progressed
 	lastLine=$(tac "${dataloc}ShiftTracker0.asc" | egrep -m 1 .)
-	IFS="\s\t";  read -ra line <<< $lastLine
+	#IFS="\s\t";  read -ra line <<< $lastLine
+	line=($lastLine)
 	lastM=${line[1]}
 
 	#Update the previous maximum M field
 	writeToExternalFile $i $PMM $lastM $STATUS_FILE
 
 	#Then resubmit/restart the simulation and update statuses accordingly
-	submitStatus=$($CACTUS_DIR/simfactory/bin/sim submit $simName --walltime=$DEF_WALLTIME --procs=$DEF_PROCS)
+	#submitStatus=$($CACTUS_DIR/simfactory/bin/sim submit $simName --walltime=$DEF_WALLTIME --procs=$DEF_PROCS)
 	updateStatuses $i $submitStatus
 done
 
