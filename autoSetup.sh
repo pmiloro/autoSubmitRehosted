@@ -33,8 +33,11 @@ queueStatuses=()
 lastRunDates=()
 previousMaxMs=()
 #Find or create the data for all the simulations tracked in the data source folder
+substituteJID=0
 for i in "${previousSims[@]}"
 do
+	substitueJID=$((substituteJID+=1))
+
 	tokenlessPar=$(ls "$SIM_OUTPUT_DIR/$i/output-0000/" | grep ".par")
 #	echo "tokenlessPar:$tokenlessPar"
 	parfileNames+=("PFN:$tokenlessPar")
@@ -70,7 +73,7 @@ do
 #		echo "$jobName"
 
 		if [ "$i" == "$jobName" ]; then
-			count+=1
+			count+=$((count+=1))
 
 			jobIDs+=("JID:$jobID")
 
@@ -82,8 +85,8 @@ do
 		else
 			#Only do this step once to prevent repeated entries
 			if [ $count==0 ]; then
-				count+=1
-				jobIDs+=("JID:")
+				count=$((count+=1))
+				jobIDs+=("JID:00000000$substituteJID")
 				queueStatuses+=("QUS:Unsubmitted")
 				#Get the last date recorded in the last line of the log file for this simulation
 				lastRunDates+=("LRD:$(tac "$SIM_OUTPUT_DIR/$i/log.txt" | grep -o -m1 -P "(?<=\[LOG:).*(?=\])")")
