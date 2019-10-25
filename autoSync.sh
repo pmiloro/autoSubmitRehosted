@@ -24,7 +24,6 @@ for dir in "${PAR_REPO_DIRS[@]}"; do
 
 	nextPull=$(stat -c %Y .git/FETCH_HEAD)
 	
-	echo "testing"
 	if [ "$prevPull" = "$nextPull" ]; then
     		echo "Failed to update parfile lists for repo $dir"
 	else 
