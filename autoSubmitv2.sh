@@ -19,6 +19,7 @@ SIM_OUTPUT_DIR=$(grep -o "\w*$HOME/\w*/\w*" "${SETTINGS_DIR}defs.local.ini")
 echo "$SIM_OUTPUT_DIR"
 
 STATUS_FILE="$DIR/status.txt"
+LOG_FILE="log.txt"
 USERNAME="pmiloro3"
 
 #Get all simulations listed in queue
@@ -38,6 +39,7 @@ queueSizeLast=$queueSizeCurrent
 
 #If the queue is filled, there's nothing more to be done
 if [ $queueSizeCurrent -ge $MAX_QUEUE_SIZE ] ; then
+	echo "Maximum number of sims already in queue, exiting."
 	exit 0
 fi
 
@@ -112,38 +114,47 @@ function updateStatuses () {
 			if [ $queueSizeCurrent -gt $queueSizeLast ]; then
 				#Update simulation data with the new run profiles
 				line=(${sims[(($queueSizeCurrent-1))]})
+				
 				#Update data source directory
 				writeToExternalFile "$thisID" "DS:" "DSD:$SIM_OUTPUT_DIR" $STATUS_FILE
-				#Update Job ID
-				writeToExternalFile "$thisID" "JI:" "JID:${line[0]}" $STATUS_FILE
+				
 				#Update queue status
 				writeToExternalFile "$thisID" "QU:" "QUS:${line[2]}" $STATUS_FILE
+				
 				#Update last run date
-				this_LRD="${line[5]} ${line[6]} ${line[7]} ${line[8]}"
+				this_LRD="${line[5]}_${line[6]}_ ${line[7]}_ ${line[8]}"
 				writeToExternalFile "$thisID" "LR:" "LRD:$this_LRD" $STATUS_FILE
+				
+                                #Update Job ID
+                                writeToExternalFile "$thisID" "JI:" "JID:${line[0]}" $STATUS_FILE	
 			else
-				writeToExternalFile "$thisID" "JI:" "JID:ERROR" $STATUS_FILE
 				writeToExternalFile "$thisID" "QU:" "QUS:ERROR" $STATUS_FILE
-
+				writeToExternalFile "$thisID" "JI:" "JID:ERROR" $STATUS_FILE
 			fi
 		fi
 	else
 		#If the submission spits out an abort message, then cancel the rest of the process and report the error
-		if "$sStatus" | grep "Aborting"; then
-			writeToExternalFile $thisID "JID:" "JID:ERROR" "$STATUS_FILE"
+		if "$sStatus" | grep -q "Aborting"; then
 			writeToExternalFile $thisID "QUS:" "QUS:ERROR" "$STATUS_FILE"
+			writeToExternalFile $thisID "JID:" "JID:ERROR" "$STATUS_FILE"
 		else
 			getQueueSizeCurrent
 			if [ $queueSizeCurrent -gt $queueSizeLast ]; then
 				#Update simulation data with the new run profiles
 				line=(${sims[queueSizeCurrent-1]})
-				#Update Job ID
-				writeToExternalFile $thisID "JID:" "JID:${line[0]}" $STATUS_FILE
+				
 				#Update queue status
+				echo "Updating queue status"
 				writeToExternalFile $thisID "QUS:" "QUS:${line[2]}" $STATUS_FILE
+
 				#Update last run date
-                                this_LRD="${line[5]} ${line[6]} ${line[7]} ${line[8]}"
+				echo "Updating last run date"
+
+				this_LRD="${line[5]}_${line[6]}_${line[7]}_${line[8]}"
                                 writeToExternalFile "$thisID" "LRD:" "LRD:$this_LRD" $STATUS_FILE
+
+                                #Update Job ID
+                                writeToExternalFile $thisID "JID:" "JID:${line[0]}" $STATUS_FILE
 
 			else
 				writeToExternalFile $thisID "JID:" "JID:ERROR" $STATUS_FILE
@@ -282,12 +293,14 @@ for i in "${completedJIDs[@]}"; do
 	simName=$(grep "$i" "$STATUS_FILE" | grep -Po 'SMN\:[^\s]*')
 	parName=$(grep "$i" "$STATUS_FILE" | grep -Po 'PFN\:[^\s]*')
 	
-	echo "Sim name is: $simName"	
+	#echo "Sim name is: $simName"	
 
 	#Remove tokens
 	simName="${simName:4}"
 	internalFolderName="${parName:4}"
+	internalFolderName="${internalFolderName:0:((${#internalFolderName}-4))}"
 	
+	echo "$internalFolderName"
 	#echo "Simulation name is: $simName"
 	#echo "Parfile name is: $parName"	
 
@@ -302,12 +315,13 @@ for i in "${completedJIDs[@]}"; do
 
 	#Get the last line of the shift tracker data so we can determine how far the simulation has progressed
 	lastLine=$(tac "${dataLoc}ShiftTracker0.asc" | egrep -m 1 .)
+	echo "Last line is: $lastLine"
 	if [ ! -z "$lastLine" ]; then 
 		line=($lastLine)
 		lastM=${line[1]}
 
 		#Update the previous maximum M field
-		writeToExternalFile "$i" "PMM:" "$lastM" "$STATUS_FILE"
+		writeToExternalFile "$i" "PMM:" "PMM:$lastM" "$STATUS_FILE"
 
 		getQueueSizeCurrent
 		if [ $queueSizeCurrent -lt  $MAX_QUEUE_SIZE ]; then
@@ -315,8 +329,8 @@ for i in "${completedJIDs[@]}"; do
 			#echo "Submitting to queue"
 			queueSizeLast=$queueSizeCurrent
 			cd "$CACTUS_DIR"
-			#submitStatus=$("$CACTUS_DIR"/simfactory/bin/sim submit "$simName" --walltime="$DEF_WALLTIME" --procs="$DEF_PROCS")
-			#updateStatuses "$i" "$submitStatus" false
+			submitStatus=$("$CACTUS_DIR"/simfactory/bin/sim submit "$simName" --walltime="$DEF_WALLTIME" --procs="$DEF_PROCS")
+			updateStatuses "$i" "$submitStatus" false
 			cd "$DIR"
 		fi	
 	else
